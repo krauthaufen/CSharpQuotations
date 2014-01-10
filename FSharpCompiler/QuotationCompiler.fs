@@ -28,34 +28,51 @@ module QuotationCompiler =
     [<AutoOpen>]
     module Patterns =
 
+        /// <summary>
+        /// active pattern matching ForExpressions as For([variable] * [value], condition, [step], body, breakTarget, continueTarget)
+        /// </summary>
         let (|For|_|) (expression : Expression) =
             match expression with
-                | :? ForExpression as node -> Some <| For(node.Initializers, node.Test, node.Step, node.Body, node.BreakTarget, node.ContinueTarget)
+                | :? ForExpression as node -> Some <| For(node.Initializers, node.Test, node.Step |> Seq.toList, node.Body, node.BreakTarget, node.ContinueTarget)
                 | _ -> None
 
-        
 
-
+        /// <summary>
+        /// active pattern matching WhileExpression as While(condition, body, breakTarget, continueTarget)
+        /// </summary>
         let (|While|_|) (expression : Expression) =
             match expression with
                 | :? WhileExpression as node -> Some <| While(node.Test, node.Body, node.BreakTarget, node.ContinueTarget)
                 | _ -> None
 
+
+        /// <summary>
+        /// active pattern matching DoWhileExpression as DoWhile(condition, body, breakTarget, continueTarget)
+        /// </summary>
         let (|DoWhile|_|) (expression : Expression) =
             match expression with
                 | :? DoWhileExpression as node -> Some <| DoWhile(node.Test, node.Body, node.BreakTarget, node.ContinueTarget)
                 | _ -> None
 
+        /// <summary>
+        /// active pattern matching ForEachExpression as ForEach(variable, enumerable, body, breakTarget, continueTarget)
+        /// </summary>
         let (|ForEach|_|) (expression : Expression) =
             match expression with
                 | :? ForEachExpression as node -> Some <| ForEach(node.Variable, node.Enumerable, node.Body, node.BreakTarget, node.ContinueTarget)
                 | _ -> None
 
+        /// <summary>
+        /// active pattern matching BinaryExpression as Binary(type, nodeType, left, right)
+        /// </summary>
         let (|Binary|_|) (expression : Expression) =
             match expression with
                 | :? BinaryExpression as node -> Some <| Binary(node.Type, node.NodeType, node.Left, node.Right)
                 | _ -> None
 
+        /// <summary>
+        /// active pattern matching BlockExpression as Block([variable * value], body)
+        /// </summary>
         let (|Block|_|) (expression : Expression) =
             match expression with
                 | :? BlockExpression as node -> 
@@ -74,11 +91,17 @@ module QuotationCompiler =
                     Some <| Block(assignments, node.Expressions |> Seq.skip assignments.Length |> Seq.toList)
                 | _ -> None
 
+        /// <summary>
+        /// active pattern matching ConditionalExpression as Conditional(condition, ifTrue, ifFalse)
+        /// </summary>
         let (|Conditional|_|) (expression : Expression) =
             match expression with
                 | :? ConditionalExpression as node -> Some <| Conditional(node.Test, node.IfTrue, node.IfFalse)
                 | _ -> None
 
+        /// <summary>
+        /// active pattern matching DefaultExpression as Default(type)
+        /// </summary>
         let (|Default|_|) (expression : Expression) =
             match expression with
                 | :? DefaultExpression as node -> Some <| Default(node.Type)

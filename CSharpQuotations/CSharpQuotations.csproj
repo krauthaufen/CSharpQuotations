@@ -85,6 +85,12 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Attributes.cs" />
+    <Compile Include="CustomExpressions\Core.cs" />
+    <Compile Include="CustomExpressions\DoWhileExpression.cs" />
+    <Compile Include="CustomExpressions\ForEachExpression.cs" />
+    <Compile Include="CustomExpressions\ForExpression.cs" />
+    <Compile Include="CustomExpressions\Visitors.cs" />
+    <Compile Include="CustomExpressions\WhileExpression.cs" />
     <Compile Include="ExpressionCompiler.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

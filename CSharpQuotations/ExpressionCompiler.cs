@@ -12,892 +12,45 @@ using System.Threading.Tasks;
 
 namespace CSharp.Quotations
 {
-
-    public enum CustomExpressionType
-    {
-        DoWhileExpression,
-        ForEachExpression,
-        ForExpression,
-        UsingExpression,
-        WhileExpression,
-        AttributeExpression
-    }
-
-    public abstract class CustomExpression : Expression
-    {
-
-        public abstract CustomExpressionType CustomNodeType { get; }
-
-        public override ExpressionType NodeType
-        {
-            get { return ExpressionType.Extension; }
-        }
-
-        public override bool CanReduce
-        {
-            get { return true; }
-        }
-
-    }
-
-    public class ForExpression : CustomExpression
-    {
-
-        readonly Tuple<IEnumerable<ParameterExpression>, IEnumerable<Expression>> initializer;
-        readonly Expression test;
-        readonly Expression[] step;
-
-        readonly Expression body;
-
-        readonly LabelTarget break_target;
-        readonly LabelTarget continue_target;
-
-        public Tuple<IEnumerable<ParameterExpression>, IEnumerable<Expression>> Initializers
-        {
-            get { return initializer; }
-        }
-
-        public Expression Test
-        {
-            get { return test; }
-        }
-
-        public Expression[] Step
-        {
-            get { return step; }
-        }
-
-        public Expression Body
-        {
-            get { return body; }
-        }
-
-        public LabelTarget BreakTarget
-        {
-            get { return break_target; }
-        }
-
-        public LabelTarget ContinueTarget
-        {
-            get { return continue_target; }
-        }
-
-        public override Type Type
-        {
-            get
-            {
-                if (break_target != null)
-                    return break_target.Type;
-
-                return typeof(void);
-            }
-        }
-
-        public override CustomExpressionType CustomNodeType
-        {
-            get { return CustomExpressionType.ForExpression; }
-        }
-
-        internal ForExpression(Tuple<IEnumerable<ParameterExpression>, IEnumerable<Expression>> initializers, Expression test, Expression[] step, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
-        {
-            this.initializer = initializers;
-            this.test = test;
-            this.step = step;
-            this.body = body;
-            this.break_target = breakTarget;
-            this.continue_target = continueTarget;
-        }
-
-        public ForExpression Update(Tuple<IEnumerable<ParameterExpression>, IEnumerable<Expression>> initializers, Expression test, Expression[] step, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
-        {
-            if (this.initializer == initializers && this.test == test && this.step == step && this.body == body && this.break_target == breakTarget && this.continue_target == continueTarget)
-                return this;
-
-            return new ForExpression(initializers, test, step, body, breakTarget, continueTarget);
-        }
-
-        public override Expression Reduce()
-        {
-            var inner_loop_break = Expression.Label("inner_loop_break");
-            var inner_loop_continue = Expression.Label("inner_loop_continue");
-
-            var @continue = continue_target ?? Expression.Label("continue");
-            var @break = break_target ?? Expression.Label("break");
-
-            return Expression.Block(initializer.Item1,
-                Expression.Block(initializer.Item2),
-                Expression.Loop(
-                    Expression.Block(
-                        Expression.IfThen(
-                            Expression.IsFalse(test),
-                            Expression.Break(inner_loop_break)),
-                        body,
-                        Expression.Label(@continue),
-                        Expression.Block(step)),
-                    inner_loop_break,
-                    inner_loop_continue),
-                Expression.Label(@break));
-        }
-
-        protected override Expression VisitChildren(ExpressionVisitor visitor)
-        {
-            return Update(
-                Tuple.Create(initializer.Item1, initializer.Item2.Select(ii => visitor.Visit(ii))),
-                visitor.Visit(test),
-                step.Select(s => visitor.Visit(s)).ToArray(),
-                visitor.Visit(body),
-                continue_target,
-                break_target);
-        }
-    }
-
-    public class ForEachExpression : CustomExpression
-    {
-
-        readonly ParameterExpression variable;
-        readonly Expression enumerable;
-        readonly Expression body;
-
-        readonly LabelTarget break_target;
-        readonly LabelTarget continue_target;
-
-        public new ParameterExpression Variable
-        {
-            get { return variable; }
-        }
-
-        public Expression Enumerable
-        {
-            get { return enumerable; }
-        }
-
-        public Expression Body
-        {
-            get { return body; }
-        }
-
-        public LabelTarget BreakTarget
-        {
-            get { return break_target; }
-        }
-
-        public LabelTarget ContinueTarget
-        {
-            get { return continue_target; }
-        }
-
-        public override Type Type
-        {
-            get
-            {
-                if (break_target != null)
-                    return break_target.Type;
-
-                return typeof(void);
-            }
-        }
-
-        public override CustomExpressionType CustomNodeType
-        {
-            get { return CustomExpressionType.ForEachExpression; }
-        }
-
-        internal ForEachExpression(ParameterExpression variable, Expression enumerable, Expression body, LabelTarget break_target, LabelTarget continue_target)
-        {
-            this.variable = variable;
-            this.enumerable = enumerable;
-            this.body = body;
-            this.break_target = break_target;
-            this.continue_target = continue_target;
-        }
-
-        public ForEachExpression Update(ParameterExpression variable, Expression enumerable, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
-        {
-            if (this.variable == variable && this.enumerable == enumerable && this.body == body && break_target == breakTarget && continue_target == continueTarget)
-                return this;
-
-            return new ForEachExpression(variable, enumerable, body, continueTarget, breakTarget);
-        }
-
-        public override Expression Reduce()
-        {
-            // Avoid allocating an unnecessary enumerator for arrays.
-            if (enumerable.Type.IsArray)
-                return ReduceForArray();
-
-            return ReduceForEnumerable();
-        }
-
-        private Expression ReduceForArray()
-        {
-            var inner_loop_break = Expression.Label("inner_loop_break");
-            var inner_loop_continue = Expression.Label("inner_loop_continue");
-
-            var @continue = continue_target ?? Expression.Label("continue");
-            var @break = break_target ?? Expression.Label("break");
-
-            var index = Expression.Variable(typeof(int), "i");
-
-            return Expression.Block(
-                new[] { index, variable },
-                Expression.Assign(index, Expression.Constant(0)),
-                Expression.Loop(
-                    Expression.Block(
-                        Expression.IfThen(
-                            Expression.IsFalse(
-                                Expression.LessThan(
-                                    index,
-                                    Expression.ArrayLength(enumerable))),
-                            Expression.Break(inner_loop_break)),
-                        Expression.Assign(
-                            variable,
-                            Expression.Convert(
-                                Expression.ArrayIndex(
-                                enumerable,
-                                index), variable.Type)),
-                        body,
-                        Expression.Label(@continue),
-                        Expression.PreIncrementAssign(index)),
-                    inner_loop_break,
-                    inner_loop_continue),
-                Expression.Label(@break));
-        }
-
-        private Expression ReduceForEnumerable()
-        {
-            MethodInfo get_enumerator;
-            MethodInfo move_next;
-            MethodInfo get_current;
-
-            ResolveEnumerationMembers(out get_enumerator, out move_next, out get_current);
-
-            var enumerator_type = get_enumerator.ReturnType;
-
-            var enumerator = Expression.Variable(enumerator_type);
-
-            var inner_loop_continue = Expression.Label("inner_loop_continue");
-            var inner_loop_break = Expression.Label("inner_loop_break");
-            var @continue = continue_target ?? Expression.Label("continue");
-            var @break = break_target ?? Expression.Label("break");
-
-            Expression variable_initializer;
-
-            if (variable.Type.IsAssignableFrom(get_current.ReturnType))
-                variable_initializer = Expression.Property(enumerator, get_current);
-            else
-                variable_initializer = Expression.Convert(Expression.Property(enumerator, get_current), variable.Type);
-
-            Expression loop = Expression.Block(
-                new[] { variable },
-                Expression.Goto(@continue),
-                Expression.Loop(
-                    Expression.Block(
-                        Expression.Assign(variable, variable_initializer),
-                        body,
-                        Expression.Label(@continue),
-                        Expression.Condition(
-                            Expression.Call(enumerator, move_next),
-                            Expression.Goto(inner_loop_continue),
-                            Expression.Goto(inner_loop_break))),
-                    inner_loop_break,
-                    inner_loop_continue),
-                Expression.Label(@break));
-
-            var dispose = CreateDisposeOperation(enumerator_type, enumerator);
-
-            return Expression.Block(
-                new[] { enumerator },
-                Expression.Assign(enumerator, Expression.Call(enumerable, get_enumerator)),
-                dispose != null
-                    ? Expression.TryFinally(loop, dispose)
-                    : loop);
-        }
-
-        private void ResolveEnumerationMembers(
-            out MethodInfo get_enumerator,
-            out MethodInfo move_next,
-            out MethodInfo get_current)
-        {
-            Type item_type;
-            Type enumerable_type;
-            Type enumerator_type;
-
-            if (TryGetGenericEnumerableArgument(out item_type))
-            {
-                enumerable_type = typeof(IEnumerable<>).MakeGenericType(item_type);
-                enumerator_type = typeof(IEnumerator<>).MakeGenericType(item_type);
-            }
-            else
-            {
-                enumerable_type = typeof(IEnumerable);
-                enumerator_type = typeof(IEnumerator);
-            }
-
-            move_next = typeof(IEnumerator).GetMethod("MoveNext");
-            get_current = enumerator_type.GetProperty("Current").GetGetMethod();
-            get_enumerator = enumerable.Type.GetMethod("GetEnumerator", BindingFlags.Public | BindingFlags.Instance);
-
-            //
-            // We want to avoid unnecessarily boxing an enumerator if it's a value type.  Look
-            // for a GetEnumerator() method that conforms to the rules of the C# 'foreach'
-            // pattern.  If we don't find one, fall back to IEnumerable[<T>].GetEnumerator().
-            //
-
-            if (get_enumerator == null || !enumerator_type.IsAssignableFrom(get_enumerator.ReturnType))
-            {
-                get_enumerator = enumerable_type.GetMethod("GetEnumerator");
-            }
-        }
-
-        private static Expression CreateDisposeOperation(Type enumerator_type, ParameterExpression enumerator)
-        {
-            var dispose = typeof(IDisposable).GetMethod("Dispose");
-
-            if (typeof(IDisposable).IsAssignableFrom(enumerator_type))
-            {
-                //
-                // We know the enumerator implements IDisposable, so skip the type check.
-                //
-                return Expression.Call(enumerator, dispose);
-            }
-
-            if (enumerator_type.IsValueType)
-            {
-                //
-                // The enumerator is a value type and doesn't implement IDisposable; we needn't
-                // bother with a check at all.
-                //
-                return null;
-            }
-
-            //
-            // We don't know whether the enumerator implements IDisposable or not.  Emit a
-            // runtime check.
-            //
-
-            var disposable = Expression.Variable(typeof(IDisposable));
-
-            return Expression.Block(
-                new[] { disposable },
-                Expression.Assign(disposable, Expression.TypeAs(enumerator, typeof(IDisposable))),
-                Expression.IfThen(
-                    Expression.ReferenceNotEqual(disposable, Expression.Constant(null)),
-                    Expression.Call(
-                        disposable,
-                        "Dispose",
-                        Type.EmptyTypes)));
-        }
-
-        private bool TryGetGenericEnumerableArgument(out Type argument)
-        {
-            argument = null;
-
-            foreach (var iface in enumerable.Type.GetInterfaces())
-            {
-                if (!iface.IsGenericType)
-                    continue;
-
-                var definition = iface.GetGenericTypeDefinition();
-                if (definition != typeof(IEnumerable<>))
-                    continue;
-
-                argument = iface.GetGenericArguments()[0];
-                if (variable.Type.IsAssignableFrom(argument))
-                    return true;
-            }
-
-            return false;
-        }
-
-        protected override Expression VisitChildren(ExpressionVisitor visitor)
-        {
-            return Update(
-                (ParameterExpression)visitor.Visit(variable),
-                visitor.Visit(enumerable),
-                visitor.Visit(body),
-                break_target,
-                continue_target);
-        }
-    }
-
-    public class WhileExpression : CustomExpression
-    {
-
-        readonly Expression test;
-        readonly Expression body;
-
-        readonly LabelTarget break_target;
-        readonly LabelTarget continue_target;
-
-        public Expression Test
-        {
-            get { return test; }
-        }
-
-        public Expression Body
-        {
-            get { return body; }
-        }
-
-        public LabelTarget BreakTarget
-        {
-            get { return break_target; }
-        }
-
-        public LabelTarget ContinueTarget
-        {
-            get { return continue_target; }
-        }
-
-        public override Type Type
-        {
-            get
-            {
-                if (break_target != null)
-                    return break_target.Type;
-
-                return typeof(void);
-            }
-        }
-
-        public override CustomExpressionType CustomNodeType
-        {
-            get { return CustomExpressionType.WhileExpression; }
-        }
-
-        internal WhileExpression(Expression test, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
-        {
-            this.test = test;
-            this.body = body;
-            this.break_target = breakTarget;
-            this.continue_target = continueTarget;
-        }
-
-        public WhileExpression Update(Expression test, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
-        {
-            if (this.test == test && this.body == body && this.break_target == breakTarget && this.continue_target == continueTarget)
-                return this;
-
-            return new WhileExpression(test, body, breakTarget, continueTarget);
-        }
-
-        public override Expression Reduce()
-        {
-            var inner_loop_break = Expression.Label("inner_loop_break");
-            var inner_loop_continue = Expression.Label("inner_loop_continue");
-
-            var @continue = continue_target ?? Expression.Label("continue");
-            var @break = break_target ?? Expression.Label("break");
-
-            return Expression.Block(
-                Expression.Loop(
-                    Expression.Block(
-                        Expression.Label(@continue),
-                        Expression.Condition(
-                            test,
-                            Expression.Block(
-                                body,
-                                Expression.Goto(inner_loop_continue)),
-                            Expression.Goto(inner_loop_break))),
-                    inner_loop_break,
-                    inner_loop_continue),
-                Expression.Label(@break));
-        }
-
-        protected override Expression VisitChildren(ExpressionVisitor visitor)
-        {
-            return Update(
-                visitor.Visit(test),
-                visitor.Visit(body),
-                continue_target,
-                break_target);
-        }
-    }
-
-    public class DoWhileExpression : CustomExpression
-    {
-
-        readonly Expression test;
-        readonly Expression body;
-
-        readonly LabelTarget break_target;
-        readonly LabelTarget continue_target;
-
-        public Expression Test
-        {
-            get { return test; }
-        }
-
-        public Expression Body
-        {
-            get { return body; }
-        }
-
-        public LabelTarget BreakTarget
-        {
-            get { return break_target; }
-        }
-
-        public LabelTarget ContinueTarget
-        {
-            get { return continue_target; }
-        }
-
-        public override Type Type
-        {
-            get
-            {
-                if (break_target != null)
-                    return break_target.Type;
-
-                return typeof(void);
-            }
-        }
-
-        public override CustomExpressionType CustomNodeType
-        {
-            get { return CustomExpressionType.DoWhileExpression; }
-        }
-
-        internal DoWhileExpression(Expression test, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
-        {
-            this.test = test;
-            this.body = body;
-            this.break_target = breakTarget;
-            this.continue_target = continueTarget;
-        }
-
-        public DoWhileExpression Update(Expression test, Expression body, LabelTarget breakTarget, LabelTarget continueTarget)
-        {
-            if (this.test == test && this.body == body && this.break_target == breakTarget && this.continue_target == continueTarget)
-                return this;
-
-            return new DoWhileExpression(test, body, breakTarget, continueTarget);
-        }
-
-        public override Expression Reduce()
-        {
-            var inner_loop_break = Expression.Label("inner_loop_break");
-            var inner_loop_continue = Expression.Label("inner_loop_continue");
-
-            var @continue = continue_target ?? Expression.Label("continue");
-            var @break = break_target ?? Expression.Label("break");
-
-            return Expression.Block(
-                Expression.Loop(
-                    Expression.Block(
-                        Expression.Label(@continue),
-                        body,
-                        Expression.Condition(
-                            test,
-                            Expression.Goto(inner_loop_continue),
-                            Expression.Goto(inner_loop_break))),
-                    inner_loop_break,
-                    inner_loop_continue),
-                Expression.Label(@break));
-        }
-
-        protected override Expression VisitChildren(ExpressionVisitor visitor)
-        {
-            return Update(
-                visitor.Visit(test),
-                visitor.Visit(body),
-                continue_target,
-                break_target);
-        }
-
-    }
-
-   
-
-
-    public class CustomExpressionVisitor : ExpressionVisitor
-    {
-        protected internal virtual Expression VisitFor(ForExpression node)
-        {
-            return base.Visit(node);
-        }
-
-        protected internal virtual Expression VisitWhile(WhileExpression node)
-        {
-            return base.Visit(node);
-        }
-
-        protected internal virtual Expression VisitDoWhile(DoWhileExpression node)
-        {
-            return base.Visit(node);
-        }
-
-        protected internal virtual Expression VisitForEach(ForEachExpression node)
-        {
-            return base.Visit(node);
-        }
-
-        public override Expression Visit(Expression node)
-        {
-            if (node is ForExpression) return VisitFor((ForExpression)node);
-            else if (node is WhileExpression) return VisitWhile((WhileExpression)node);
-            else if (node is DoWhileExpression) return VisitDoWhile((DoWhileExpression)node);
-            else if (node is ForEachExpression) return VisitForEach((ForEachExpression)node);
-            else return base.Visit(node);
-        }
-    }
-
-    public abstract class CustomExpressionVisitor<T>
-    {
-        public abstract T VisitFor(ForExpression node);
-        public abstract T VisitWhile(WhileExpression node);
-        public abstract T VisitDoWhile(DoWhileExpression node);
-        public abstract T VisitForEach(ForEachExpression node);
-
-        public abstract T VisitBinary(BinaryExpression node);
-        public abstract T VisitBlock(BlockExpression node);
-        public abstract T VisitConditional(ConditionalExpression node);
-        public abstract T VisitConstant(ConstantExpression node);
-        //public abstract T VisitDebugInfo(DebugInfoExpression node);
-        public abstract T VisitDefault(DefaultExpression node);
-        //public abstract T VisitDynamic(DynamicExpression node);
-        //public abstract T VisitGoto(GotoExpression node);
-        //public abstract T VisitIndex(IndexExpression node);
-        public abstract T VisitInvocation(InvocationExpression node);
-        public abstract T VisitLabel(LabelExpression node);
-        public abstract T VisitLambda(LambdaExpression node);
-        //public abstract T VisitListInit(ListInitExpression node);
-        //public abstract T VisitLoop(LoopExpression node);
-        public abstract T VisitMember(MemberExpression node);
-        public abstract T VisitMemberInit(MemberInitExpression node);
-        public abstract T VisitMethodCall(MethodCallExpression node);
-        public abstract T VisitNew(NewExpression node);
-        public abstract T VisitNewArray(NewArrayExpression node);
-        public abstract T VisitParameter(ParameterExpression node);
-        public abstract T VisitSwitch(SwitchExpression node);
-        public abstract T VisitTry(TryExpression node);
-        //public abstract T VisitTypeBinary(TypeBinaryExpression node);
-        public abstract T VisitUnary(UnaryExpression node);
-
-        public abstract T VisitBreak(GotoExpression node);
-        public abstract T VisitContinue(GotoExpression node);
-        public abstract T VisitReturn(GotoExpression node);
-        public abstract T VisitGoto(GotoExpression node);
-
-        internal T Visit(Expression e)
-        {
-            var b = new BuilderVisitor(this);
-            b.Visit(e);
-            return b.Result;
-        }
-
-        private class BuilderVisitor : CustomExpressionVisitor
-        {
-            private CustomExpressionVisitor<T> m_parent;
-            public T Result = default(T);
-
-            public BuilderVisitor(CustomExpressionVisitor<T> parent)
-            {
-                m_parent = parent;
-            }
-
-            public T Run(Expression e)
-            {
-                base.Visit(e);
-                return Result;
-            }
-
-            protected override Expression VisitGoto(GotoExpression node)
-            {
-                if (node.Kind == GotoExpressionKind.Break)
-                    Result = m_parent.VisitBreak(node);
-                else if (node.Kind == GotoExpressionKind.Continue)
-                    Result = m_parent.VisitContinue(node);
-                else if (node.Kind == GotoExpressionKind.Return)
-                    Result = m_parent.VisitReturn(node);
-                else
-                    Result = m_parent.VisitGoto(node);
-
-                return base.VisitGoto(node);
-            }
-
-            protected internal override Expression VisitFor(ForExpression node)
-            {
-                
-                Result = m_parent.VisitFor(node);
-                return base.VisitFor(node);
-            }
-
-            protected internal override Expression VisitWhile(WhileExpression node)
-            {
-                Result = m_parent.VisitWhile(node);
-                return base.VisitWhile(node);
-            }
-
-            protected internal override Expression VisitDoWhile(DoWhileExpression node)
-            {
-                Result = m_parent.VisitDoWhile(node);
-                return base.VisitDoWhile(node);
-            }
-
-            protected internal override Expression VisitForEach(ForEachExpression node)
-            {
-                Result = m_parent.VisitForEach(node);
-                return base.VisitForEach(node);
-            }
-
-            protected override Expression VisitBinary(BinaryExpression node)
-            {
-                Result = m_parent.VisitBinary(node);
-                return base.VisitBinary(node);
-            }
-
-            protected override Expression VisitBlock(BlockExpression node)
-            {
-                Result = m_parent.VisitBlock(node);
-                return base.VisitBlock(node);
-            }
-
-            protected override Expression VisitConditional(ConditionalExpression node)
-            {
-                Result = m_parent.VisitConditional(node);
-                return base.VisitConditional(node);
-            }
-
-            protected override Expression VisitConstant(ConstantExpression node)
-            {
-                Result = m_parent.VisitConstant(node);
-                return base.VisitConstant(node);
-            }
-
-            protected override Expression VisitDefault(DefaultExpression node)
-            {
-                Result = m_parent.VisitDefault(node);
-                return base.VisitDefault(node);
-            }
-
-         
-
-            protected override Expression VisitInvocation(InvocationExpression node)
-            {
-                Result = m_parent.VisitInvocation(node);
-                return base.VisitInvocation(node);
-            }
-
-            protected override Expression VisitLabel(LabelExpression node)
-            {
-                Result = m_parent.VisitLabel(node);
-                return base.VisitLabel(node);
-            }
-
-            protected override Expression VisitLambda<TL>(Expression<TL> node)
-            {
-                Result = m_parent.VisitLambda(node);
-                return base.VisitLambda(node);
-            }
-
-            protected override Expression VisitMember(MemberExpression node)
-            {
-                Result = m_parent.VisitMember(node);
-                return base.VisitMember(node);
-            }
-
-            protected override Expression VisitMethodCall(MethodCallExpression node)
-            {
-                Result = m_parent.VisitMethodCall(node);
-                return base.VisitMethodCall(node);
-            }
-
-            protected override Expression VisitNew(NewExpression node)
-            {
-                Result = m_parent.VisitNew(node);
-                return base.VisitNew(node);
-            }
-
-            protected override Expression VisitNewArray(NewArrayExpression node)
-            {
-                Result = m_parent.VisitNewArray(node);
-                return base.VisitNewArray(node);
-            }
-
-            protected override Expression VisitParameter(ParameterExpression node)
-            {
-                Result = m_parent.VisitParameter(node);
-                return base.VisitParameter(node);
-            }
-
-            protected override Expression VisitSwitch(SwitchExpression node)
-            {
-                Result = m_parent.VisitSwitch(node);
-                return base.VisitSwitch(node);
-            }
-
-            protected override Expression VisitTry(TryExpression node)
-            {
-                Result = m_parent.VisitTry(node);
-                return base.VisitTry(node);
-            }
-
-            protected override Expression VisitUnary(UnaryExpression node)
-            {
-                Result = m_parent.VisitUnary(node);
-                return base.VisitUnary(node);
-            }
-
-        }
-    }
-
-    public static class ExpressionExtensions
-    {
-        public static T Accept<T>(this Expression e, CustomExpressionVisitor<T> visitor)
-        {
-            return visitor.Visit(e);
-        }
-    }
-
-
-    public static class AttributeHolder
-    {
-        private static Dictionary<Expression, Expression[]> s_attributes = new Dictionary<Expression, Expression[]>();
-
-        public static T WithAttributes<T>(this T e, params Expression[] attributes)
-            where T : Expression
-        {
-            if(attributes.Length > 0)
-                s_attributes[e] = attributes;
-            return e;
-        }
-
-        public static Expression[] GetAttributes(this Expression e)
-        {
-            Expression[] result;
-            if (s_attributes.TryGetValue(e, out result))
-            {
-                return result;
-            }
-            else return new Expression[0];
-        }
-
-    }
-
+    
+    /// <summary>
+    /// Expression Visitor compiling expressions.
+    /// the returned type is a function expecting a sequence of expressions which will be treated as continuation.
+    /// This special return-type is necessary for some scenarios like variable-binds/etc. (where the continuation has to be nested in the declaration itself)
+    /// The CompileVisitor (at the moment) carries state which means that for each compilation a unique visitor must be used.
+    /// TODO: this visitor could use ComputationExpressions provided by F# whereas currently we have to write monadic code in C#. (rather cumbersume)
+    /// </summary>
     public class CompileVisitor : SyntaxVisitor<Func<IEnumerable<Expression>, Expression>>
     {
         
         private MethodBase m_method;
         private Type m_type;
+        private Dictionary<string, Type> m_genericArguments;
+
         private ParameterExpression m_this;
         private CompiledNamespaceAttribute[] m_namespaces;
 
-        private Dictionary<string, ParameterExpression> m_parameters = new Dictionary<string, ParameterExpression>();
+        private Dictionary<string, ParameterExpression> m_knownVariables = new Dictionary<string, ParameterExpression>();
         private LabelTarget m_currentBreakLabel;
         private LabelTarget m_currentContinueLabel;
-        private LabelTarget m_topLabel;
-
-        private Dictionary<string, Type> m_genericArguments;
+        private LabelTarget m_functionEndLabel;
 
         #region Compile
 
+        //private helper functions for compiling several types of Roslyn's syntax nodes
+
+        /// <summary>
+        /// compiles an arbitrary snytax node using the overriden visitor-methods
+        /// </summary>
         private Func<IEnumerable<Expression>, Expression> Compile(SyntaxNode node)
         {
             return node.Accept(this);
         }
 
+        /// <summary>
+        /// compiles a block and provides the ability to ignore the returned value
+        /// this is useful in situations where two blocks are known to be void
+        /// </summary>
         private Func<IEnumerable<Expression>, Expression> Compile(BlockSyntax node, bool ignore = false)
         {
             return Bind(node.Accept(this), r =>
@@ -906,6 +59,9 @@ namespace CSharp.Quotations
                 });
         }
 
+        /// <summary>
+        /// visits a CatchClauseSyntax and produces a CatchBlock
+        /// </summary>
         private Func<IEnumerable<Expression>, CatchBlock> Compile(CatchClauseSyntax node)
         {
             var exceptionType = Resolve(node.Declaration.Type);
@@ -916,11 +72,17 @@ namespace CSharp.Quotations
                     };
         }
 
-        private Func<IEnumerable<Expression>, Expression> Compile(FinallyClauseSyntax node, bool ignore)
+        /// <summary>
+        /// visits a FinallyClauseSyntax and produces an Expression
+        /// </summary>
+        private Func<IEnumerable<Expression>, Expression> Compile(FinallyClauseSyntax node)
         {
-            return Compile(node.Block, ignore);
+            return Compile((SyntaxNode)node);
         }
 
+        /// <summary>
+        /// visits a SwitchSectionSyntax and produces a SwitchCase
+        /// </summary>
         private Func<IEnumerable<Expression>, SwitchCase> Compile(SwitchSectionSyntax node)
         {
             return Bind(node.Statements.Select(Compile).ToArray(), b =>
@@ -932,13 +94,17 @@ namespace CSharp.Quotations
 
         #region Constructors
 
-        public CompileVisitor(MethodBase method, Type[] types)
+        /// <summary>
+        /// creates a new CompileVisitor for the given method and type arguments
+        /// types may be null if the method does not need further type arguments
+        /// </summary>
+        private CompileVisitor(MethodBase method, Type[] types)
         {
             m_method = method;
             m_type = m_method.DeclaringType;
             m_namespaces = Expr.GetNamespaces(m_method).ToArray();
             var returnType = ((MethodInfo)method).ReturnType;
-            m_topLabel = Expression.Label(returnType, "ret");
+            m_functionEndLabel = Expression.Label(returnType, "ret");
             m_this = null;
             var mi = (MethodInfo)method;
 
@@ -965,7 +131,8 @@ namespace CSharp.Quotations
 
         #region Types
 
-        //TODO: better resolve for types
+        //TODO: maybe some issues resolving generic types
+        //TODO: add support for alias-usings like "using A = ..." in "new A.SomeType()"
 
         private Type Resolve(PredefinedTypeSyntax pd)
         {
@@ -1012,11 +179,31 @@ namespace CSharp.Quotations
             throw new NotImplementedException("should consider aliases etc. here");
         }
 
+        private Type Resolve(TypeSyntax type)
+        {
+            var pd = type as PredefinedTypeSyntax;
+            var nameType = type as IdentifierNameSyntax;
+            var qualType = type as QualifiedNameSyntax;
+            var gen = type as GenericNameSyntax;
+            var arr = type as ArrayTypeSyntax;
+
+            if (type == null) return null;
+            else if (pd != null) return Resolve(pd);
+            else if (type.IsVar) return null;
+            else if (arr != null) return Resolve(arr.ElementType).MakeArrayType();
+            else if (nameType != null) return Resolve(nameType);
+            else if (qualType != null) return Resolve(qualType);
+            else if (gen != null) return Resolve(string.Format("{0}`{1}", gen.Identifier, gen.Arity)).MakeGenericType(gen.TypeArgumentList.Arguments.Select(a => Resolve(a)).ToArray());
+            else throw new NotImplementedException();
+        }
+
         private Type Resolve(string name)
         {
             var mine = m_type.Assembly.GetType(m_type.Namespace + "." + name);
             if (mine != null) return mine;
 
+
+            //TODO: ensure that all assemblies are loaded (should be incremental)
             foreach (var r in Assembly.GetEntryAssembly().GetReferencedAssemblies())
             {
                 Assembly.Load(r);
@@ -1055,27 +242,11 @@ namespace CSharp.Quotations
             throw new TypeLoadException(name);
         }
 
-        private Type Resolve(TypeSyntax type)
-        {
-            var pd = type as PredefinedTypeSyntax;
-            var nameType = type as IdentifierNameSyntax;
-            var qualType = type as QualifiedNameSyntax;
-            var gen = type as GenericNameSyntax;
-            var arr = type as ArrayTypeSyntax;
-
-            if (type == null) return null;
-            else if (pd != null) return Resolve(pd);
-            else if (type.IsVar) return null;
-            else if (arr != null) return Resolve(arr.ElementType).MakeArrayType();
-            else if (nameType != null) return Resolve(nameType);
-            else if (qualType != null) return Resolve(qualType);
-            else if (gen != null) return Resolve(string.Format("{0}`{1}", gen.Identifier, gen.Arity)).MakeGenericType(gen.TypeArgumentList.Arguments.Select(a => Resolve(a)).ToArray());
-            else throw new NotImplementedException();
-        }
-
         #endregion
 
         #region Methods
+
+        //TODO: implement correct resolve for generic methods (since not provided by DefaultBinder)
 
         private static bool TryUnify(Type parameters, Type arguments, Dictionary<Type, Type> assignment)
         {
@@ -1120,7 +291,6 @@ namespace CSharp.Quotations
 
             return gen.MakeGenericMethod(ordered);
         }
-
 
         private MethodInfo GetMethod(Type type, NameSyntax name, IEnumerable<Expression> arguments)
         {
@@ -1181,6 +351,8 @@ namespace CSharp.Quotations
         #endregion
 
         #region Values
+        
+        //TODO: add parsers for other literal-types
 
         private static object ParseNumeric(string numeric)
         {
@@ -1213,11 +385,11 @@ namespace CSharp.Quotations
                                .Select(al => Compile(al)(Enumerable.Empty<Expression>()))
                                .ToArray();
            
-            if (!m_parameters.TryGetValue(name, out pe))
+            if (!m_knownVariables.TryGetValue(name, out pe))
             {
                 pe = Expression.Parameter(t ?? Resolve(pi.Type), name);
                 
-                m_parameters[name] = pe;
+                m_knownVariables[name] = pe;
             }
 
             return pe.WithAttributes(attributes);
@@ -1227,10 +399,10 @@ namespace CSharp.Quotations
         {
             ParameterExpression pe;
 
-            if (!m_parameters.TryGetValue(name, out pe))
+            if (!m_knownVariables.TryGetValue(name, out pe))
             {
                 pe = Expression.Parameter(type, name);
-                m_parameters[name] = pe;
+                m_knownVariables[name] = pe;
             }
 
             return pe;
@@ -1261,6 +433,8 @@ namespace CSharp.Quotations
         #endregion
 
         #region Monad
+
+        //methods representing a classical Monad-API making compositions of compilation-code easier
 
         private Func<IEnumerable<Expression>, TOut> Bind<TIn, TOut>(Func<IEnumerable<Expression>, TIn> m, Func<TIn, Func<IEnumerable<Expression>, TOut>> f)
         {
@@ -1311,6 +485,8 @@ namespace CSharp.Quotations
         #endregion
 
         #region Functions
+
+        //TODO: add missing operators
 
         private static Func<Expression, Expression, Expression> BinaryOperator(SyntaxKind kind)
         {
@@ -1413,7 +589,7 @@ namespace CSharp.Quotations
             var parameters = node.ParameterList.Parameters.Select(pi => CompileParameter(pi)).ToArray();
             var body = Compile(node.Body);
 
-            return Bind(body, b => Return(Expression.Lambda(Expression.Block(b, Expression.Label(@m_topLabel, Expression.Default(m_topLabel.Type))), parameters)));
+            return Bind(body, b => Return(Expression.Lambda(Expression.Block(b, Expression.Label(m_functionEndLabel, Expression.Default(m_functionEndLabel.Type))), parameters)));
         }
 
         public override Func<IEnumerable<Expression>, Expression> VisitParameter(ParameterSyntax node)
@@ -1435,7 +611,7 @@ namespace CSharp.Quotations
 
 
             ParameterExpression e;
-            if (m_parameters.TryGetValue(name, out e)) return Return(e);
+            if (m_knownVariables.TryGetValue(name, out e)) return Return(e);
             else
             {
                 var types = new HashSet<Type>(){ m_type };
@@ -1488,7 +664,7 @@ namespace CSharp.Quotations
         {
             //return Compile(node.Expression);
             return Bind(Compile(node.Expression), e =>
-                    Return(Expression.Return(m_topLabel, e)));
+                    Return(Expression.Return(m_functionEndLabel, e)));
         }
 
         public override Func<IEnumerable<Expression>, Expression> VisitLiteralExpression(LiteralExpressionSyntax node)
@@ -1821,7 +997,7 @@ namespace CSharp.Quotations
                 
                 Func<Type> type = () => t != null ? Resolve(t) : null;
 
-                if (t != null && !m_parameters.ContainsKey(t.ToString()) && type() != null)
+                if (t != null && !m_knownVariables.ContainsKey(t.ToString()) && type() != null)
                 {
                     return Bind<Expression, Expression>(node.ArgumentList.Arguments.Select(a => Compile(a.Expression)).ToArray(), a =>
                            {
@@ -1848,7 +1024,7 @@ namespace CSharp.Quotations
             else if (name != null)
             {
                 ParameterExpression lambda;
-                if (m_parameters.TryGetValue(name.ToString(), out lambda))
+                if (m_knownVariables.TryGetValue(name.ToString(), out lambda))
                 {
                     return Bind<Expression, Expression>(node.ArgumentList.Arguments.Select(a => Compile(a.Expression)).ToArray(), a =>
                     {
@@ -1963,8 +1139,10 @@ namespace CSharp.Quotations
                    });
         }
 
-        #region Unused
-
+        /// <summary>
+        /// DefaultVisit will throw an exception when called. this is useful for finding 
+        /// node-types which are not yet supported via debugging
+        /// </summary>
         public override Func<IEnumerable<Expression>, Expression> DefaultVisit(SyntaxNode node)
         {
             throw new NotImplementedException();
@@ -1972,10 +1150,15 @@ namespace CSharp.Quotations
 
         #endregion
 
-        #endregion
+        #region Static Compilation
 
-        #region Compile
-
+        /// <summary>
+        /// Creates a new CompileVisitor and visits the supplied SyntaxTree
+        /// returns the obtained expression using an empty continuation.
+        /// If the given member is a static method it's converted to a lambda-function taking the exact same arguments.
+        /// if the method is non-static a lambda function expecting a "self" argument is returned which will then yield 
+        /// the same representation described above.
+        /// </summary>
         public static Expression Compile(MethodBase method, SyntaxTree tree)
         {
             var m = tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>().FirstOrDefault();
@@ -1989,11 +1172,52 @@ namespace CSharp.Quotations
         #endregion
     }
 
-    public static class Intrinsics
+
+    /// <summary>
+    /// static class holding special-attributes for all expressions in a ConditionalWeakTable.
+    /// attributes can be freely added and queried for expressions using WithAttributes and GetAttributes.
+    /// </summary>
+    public static class ExpressionAttributor
+    {
+        private static ConditionalWeakTable<Expression, Expression[]> s_attributes = new ConditionalWeakTable<Expression, Expression[]>();
+
+        public static T WithAttributes<T>(this T e, params Expression[] attributes)
+            where T : Expression
+        {
+            Expression[] oldAttributes;
+
+            if (s_attributes.TryGetValue(e, out oldAttributes))
+            {
+                attributes = attributes.Concat(oldAttributes).ToArray();
+                s_attributes.Remove(e);
+            }
+
+            if (attributes.Length > 0)
+                s_attributes.Add(e, attributes);
+
+            return e;
+        }
+
+        public static Expression[] GetAttributes(this Expression e)
+        {
+            Expression[] result;
+            if (s_attributes.TryGetValue(e, out result))
+            {
+                return result;
+            }
+            else return new Expression[0];
+        }
+
+    }
+
+
+    /// <summary>
+    /// Contains intrinsic functions needed for the compilation
+    /// </summary>
+    internal static class Intrinsics
     {
         private static void ignore<T>(T arg) { }
         public static MethodInfo Ignore = ((Action<int>)ignore<int>).Method.GetGenericMethodDefinition();
-
     }
 
 
