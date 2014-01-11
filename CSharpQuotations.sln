@@ -1,11 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2012
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CSharpQuotations", "CSharpQuotations\CSharpQuotations.csproj", "{01372784-1F18-47BD-9D10-B374DC2B0D1D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CSharp.Quotations", "CSharpQuotations\CSharp.Quotations.csproj", "{01372784-1F18-47BD-9D10-B374DC2B0D1D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CSharpTests", "CSharpTests\CSharpTests.csproj", "{76414B9B-2B46-4CFE-88B4-0DF068B57FB5}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "FSharpCompiler", "FSharpCompiler\FSharpCompiler.fsproj", "{FD258354-1F0D-460A-B931-5BD91BFE0972}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "FSharp.Compiler", "FSharpCompiler\FSharp.Compiler.fsproj", "{FD258354-1F0D-460A-B931-5BD91BFE0972}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CSharpQuoter", "CSharpQuoter\CSharpQuoter.csproj", "{6FCD20FD-608F-416B-AF21-EDAD55072D44}"
 EndProject
@@ -14,6 +14,8 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Core", "Core", "{0C2ECEE6-926B-4982-931D-436AB9768038}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{9E772D1E-C50A-49F1-8869-76A7BB6E2685}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExpressionTests", "ExpressionTests\ExpressionTests.csproj", "{22425DB2-C96D-483F-A83A-E529804BCECF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -41,6 +43,10 @@ Global
 		{66702C98-0DD2-4128-B766-61F79BCAE726}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{66702C98-0DD2-4128-B766-61F79BCAE726}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{66702C98-0DD2-4128-B766-61F79BCAE726}.Release|Any CPU.Build.0 = Release|Any CPU
+		{22425DB2-C96D-483F-A83A-E529804BCECF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{22425DB2-C96D-483F-A83A-E529804BCECF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{22425DB2-C96D-483F-A83A-E529804BCECF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{22425DB2-C96D-483F-A83A-E529804BCECF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -50,5 +56,6 @@ Global
 		{01372784-1F18-47BD-9D10-B374DC2B0D1D} = {0C2ECEE6-926B-4982-931D-436AB9768038}
 		{66702C98-0DD2-4128-B766-61F79BCAE726} = {9E772D1E-C50A-49F1-8869-76A7BB6E2685}
 		{76414B9B-2B46-4CFE-88B4-0DF068B57FB5} = {9E772D1E-C50A-49F1-8869-76A7BB6E2685}
+		{22425DB2-C96D-483F-A83A-E529804BCECF} = {9E772D1E-C50A-49F1-8869-76A7BB6E2685}
 	EndGlobalSection
 EndGlobal

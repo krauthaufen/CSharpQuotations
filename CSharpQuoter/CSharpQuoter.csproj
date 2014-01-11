@@ -67,9 +67,9 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\CSharpQuotations\CSharpQuotations.csproj">
+    <ProjectReference Include="..\CSharpQuotations\CSharp.Quotations.csproj">
       <Project>{01372784-1f18-47bd-9d10-b374dc2b0d1d}</Project>
-      <Name>CSharpQuotations</Name>
+      <Name>CSharp.Quotations</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

@@ -52,11 +52,11 @@ namespace Test
             get { return 7 + c; }
         }
 
-        public int Some(int a)
+        public static int Some(int a)
         {
             foreach (var xi in new List<int>() {1,2,3})
             {
-                a += Abs2(xi) + this[xi];
+                a += Abs2(xi);
             }
 
             try

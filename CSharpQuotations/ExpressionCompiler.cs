@@ -14,8 +14,8 @@ namespace CSharp.Quotations
 {
     
     /// <summary>
-    /// Expression Visitor compiling expressions.
-    /// the returned type is a function expecting a sequence of expressions which will be treated as continuation.
+    /// Syntax visitor compiling to expressions.
+    /// the returned type is a function expecting a sequence of expressions as argument which will be treated as continuation.
     /// This special return-type is necessary for some scenarios like variable-binds/etc. (where the continuation has to be nested in the declaration itself)
     /// The CompileVisitor (at the moment) carries state which means that for each compilation a unique visitor must be used.
     /// TODO: this visitor could use ComputationExpressions provided by F# whereas currently we have to write monadic code in C#. (rather cumbersume)
@@ -75,8 +75,9 @@ namespace CSharp.Quotations
         /// <summary>
         /// visits a FinallyClauseSyntax and produces an Expression
         /// </summary>
-        private Func<IEnumerable<Expression>, Expression> Compile(FinallyClauseSyntax node)
+        private Func<IEnumerable<Expression>, Expression> Compile(FinallyClauseSyntax node, bool ignore = false)
         {
+            //TODO: implement ignore
             return Compile((SyntaxNode)node);
         }
 
@@ -199,12 +200,17 @@ namespace CSharp.Quotations
 
         private Type Resolve(string name)
         {
+            var direct = Type.GetType(name);
+            if (direct != null) return direct;
+
             var mine = m_type.Assembly.GetType(m_type.Namespace + "." + name);
             if (mine != null) return mine;
 
+            var me = Assembly.GetEntryAssembly();
+            if (me == null) me = Assembly.GetCallingAssembly();
 
             //TODO: ensure that all assemblies are loaded (should be incremental)
-            foreach (var r in Assembly.GetEntryAssembly().GetReferencedAssemblies())
+            foreach (var r in me.GetReferencedAssemblies())
             {
                 Assembly.Load(r);
             }
@@ -641,10 +647,15 @@ namespace CSharp.Quotations
                             nextSet.UnionWith(type.GetInterfaces());
                         }
                     }
+
+
+                    types = nextSet;
+
                 }
                 
 
             }
+
 
             throw new NotImplementedException();
         }
@@ -726,6 +737,20 @@ namespace CSharp.Quotations
                 {
                     if(e.Type == typeof(void))return Return(e);
                     else return Return(Expression.Call(Intrinsics.Ignore.MakeGenericMethod(e.Type), e));
+                });
+        }
+
+        public override Func<IEnumerable<Expression>, Expression> VisitParenthesizedExpression(ParenthesizedExpressionSyntax node)
+        {
+            return Compile(node.Expression);
+        }
+
+        public override Func<IEnumerable<Expression>, Expression> VisitPrefixUnaryExpression(PrefixUnaryExpressionSyntax node)
+        {
+            return Bind(Compile(node.Operand), o =>
+                {
+                    //TOOD: not always negation
+                    return Return(Expression.MakeUnary(ExpressionType.Negate, o, o.Type));
                 });
         }
 
@@ -993,11 +1018,21 @@ namespace CSharp.Quotations
 
             if (method != null)
             {
-                var t = method.Expression as TypeSyntax;
-                
-                Func<Type> type = () => t != null ? Resolve(t) : null;
+                var id = method.Expression;
 
-                if (t != null && !m_knownVariables.ContainsKey(t.ToString()) && type() != null)
+                Func<Type> type = () =>
+                    {
+                        try
+                        {
+                            return Resolve(method.Expression.ToString());
+                        }
+                        catch (TypeLoadException)
+                        {
+                            return null;
+                        }
+                    };
+
+                if (!m_knownVariables.ContainsKey(id.ToString()) && type() != null)
                 {
                     return Bind<Expression, Expression>(node.ArgumentList.Arguments.Select(a => Compile(a.Expression)).ToArray(), a =>
                            {

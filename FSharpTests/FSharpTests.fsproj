@@ -49,8 +49,8 @@
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\CSharpQuotations\CSharpQuotations.csproj">
-      <Name>CSharpQuotations</Name>
+    <ProjectReference Include="..\CSharpQuotations\CSharp.Quotations.csproj">
+      <Name>CSharp.Quotations</Name>
       <Project>{01372784-1f18-47bd-9d10-b374dc2b0d1d}</Project>
       <Private>True</Private>
     </ProjectReference>
@@ -59,8 +59,8 @@
       <Project>{76414b9b-2b46-4cfe-88b4-0df068b57fb5}</Project>
       <Private>True</Private>
     </ProjectReference>
-    <ProjectReference Include="..\FSharpCompiler\FSharpCompiler.fsproj">
-      <Name>FSharpCompiler</Name>
+    <ProjectReference Include="..\FSharpCompiler\FSharp.Compiler.fsproj">
+      <Name>FSharp.Compiler</Name>
       <Project>{fd258354-1f0d-460a-b931-5bd91bfe0972}</Project>
       <Private>True</Private>
     </ProjectReference>

@@ -8,9 +8,9 @@
     <ProjectGuid>fd258354-1f0d-460a-b931-5bd91bfe0972</ProjectGuid>
     <OutputType>Library</OutputType>
     <RootNamespace>FSharpCompiler</RootNamespace>
-    <AssemblyName>FSharpCompiler</AssemblyName>
+    <AssemblyName>FSharp.Compiler</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
-    <Name>FSharpCompiler</Name>
+    <Name>FSharp.Compiler</Name>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -53,8 +53,8 @@
     <Compile Include="QuotationCompiler.fs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\CSharpQuotations\CSharpQuotations.csproj">
-      <Name>CSharpQuotations</Name>
+    <ProjectReference Include="..\CSharpQuotations\CSharp.Quotations.csproj">
+      <Name>CSharp.Quotations</Name>
       <Project>{01372784-1f18-47bd-9d10-b374dc2b0d1d}</Project>
       <Private>True</Private>
     </ProjectReference>

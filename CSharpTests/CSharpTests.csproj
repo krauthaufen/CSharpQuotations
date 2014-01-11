@@ -72,13 +72,13 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\FSharpCompiler\FSharpCompiler.fsproj">
+    <ProjectReference Include="..\FSharpCompiler\FSharp.Compiler.fsproj">
       <Project>{fd258354-1f0d-460a-b931-5bd91bfe0972}</Project>
-      <Name>FSharpCompiler</Name>
+      <Name>FSharp.Compiler</Name>
     </ProjectReference>
-    <ProjectReference Include="..\CSharpQuotations\CSharpQuotations.csproj">
+    <ProjectReference Include="..\CSharpQuotations\CSharp.Quotations.csproj">
       <Project>{01372784-1f18-47bd-9d10-b374dc2b0d1d}</Project>
-      <Name>CSharpQuotations</Name>
+      <Name>CSharp.Quotations</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

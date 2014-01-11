@@ -33,7 +33,7 @@ namespace CSharp.Quotations
         /// <summary>
         /// must provide a valid reduced form of the expression
         /// </summary>
-        public abstract Expression Reduce();
+        public override abstract Expression Reduce();
     }
 
 

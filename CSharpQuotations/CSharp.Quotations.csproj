@@ -7,8 +7,8 @@
     <ProjectGuid>{01372784-1F18-47BD-9D10-B374DC2B0D1D}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>CSharpQuotations</RootNamespace>
-    <AssemblyName>CSharpQuotations</AssemblyName>
+    <RootNamespace>CSharp.Quotations</RootNamespace>
+    <AssemblyName>CSharp.Quotations</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>

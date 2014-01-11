@@ -204,8 +204,6 @@ module QuotationCompiler =
                 | :? UnaryExpression  as node when node.NodeType = ExpressionType.Convert -> Some <| Coerce(node.Operand, node.Type)
                 | _ -> None
 
-
-
         let (|ForIntegerRangeLoop|_|) (expression : Expression) =
             match expression with
                 | :? ForExpression as node -> 
@@ -265,13 +263,10 @@ module QuotationCompiler =
     let private cuint32 = methodInfo <@ fun a -> uint32 a @>
     let private cint64 = methodInfo <@ fun a -> int64 a @>
     let private cuint64 = methodInfo <@ fun a -> uint64 a @>
-//    let private cnativeint = methodInfo <@ fun a -> nativeint a @>
-//    let private cunativeint = methodInfo <@ fun a -> unativeint a @>
     let private cfloat = methodInfo <@ fun a -> float a @>
     let private cfloat32 = methodInfo <@ fun a -> float32 a @>
     let private cdecimal = methodInfo <@ fun a -> decimal a @>
     let private cchar = methodInfo <@ fun a -> char a @>
-
 
 
     let private operator (m : MethodInfo) (a : Expr) (b : Expr) (t : Type) =
